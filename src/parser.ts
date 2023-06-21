@@ -5,6 +5,7 @@ import {
   ModuleItem,
   parse as swcParse,
   ParseOptions,
+  parseSync,
   Span,
   TemplateElement,
   VariableDeclarator,
@@ -23,15 +24,19 @@ export async function parse(filename: string, text: string) {
       tsx: filename.endsWith(".tsx"),
       comments: false,
     };
-  } else {
+  } else if (filename.endsWith(".js") || filename.endsWith(".jsx")) {
     parseOptions = {
       syntax: "ecmascript",
       target: "esnext",
       jsx: filename.endsWith(".jsx"),
       comments: false,
     };
+  } else {
+    return [];
   }
 
+  // SWC bug - https://github.com/swc-project/swc/issues/1366
+  const offset = parseSync("").span.end;
   const { body } = await swcParse(text, parseOptions);
 
   const classes: Cls[] = [];
@@ -72,7 +77,14 @@ export async function parse(filename: string, text: string) {
     }
   });
 
-  return classes;
+  return classes.map((cls) => ({
+    ...cls,
+    span: {
+      ...cls.span,
+      start: cls.span.start - offset,
+      end: cls.span.end - offset,
+    },
+  }));
 }
 
 type Item =
